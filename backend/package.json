@@ -1,0 +1,28 @@
+{
+  "name": "tool-calling-research-agent",
+  "version": "1.0.0",
+  "description": "An assistant that can research using a tools when needed, then responds",
+  "homepage": "https://github.com/kushwahaTarun/Tool-Calling-Research-Agent#readme",
+  "bugs": {
+    "url": "https://github.com/kushwahaTarun/Tool-Calling-Research-Agent/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kushwahaTarun/Tool-Calling-Research-Agent.git"
+  },
+  "license": "ISC",
+  "author": "Tarun Kushwaha",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
