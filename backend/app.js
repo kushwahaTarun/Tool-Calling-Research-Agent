@@ -1,11 +1,15 @@
 import express from "express";
 import dotenv from "dotenv";
 
-dotenv.config();
+import { router as healthRouter } from "./routes/health.js";
+import { router as chatRouter } from "./routes/chat.js"
+import { router as conversationRouter } from "./routes/chat.js"
 
+dotenv.config();
 export const app = express();
+
 app.use(express.json());
 
-app.get("/", (req, res) => {
-    res.send("Hello World!")
-})
+app.use("/api", healthRouter);
+app.use("/api", chatRouter);
+app.use("/api", conversationRouter);
