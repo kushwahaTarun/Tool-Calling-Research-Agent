@@ -2,7 +2,7 @@
 export const checkHealth = (req, res, next) => {
     try {
         return res.status(200).json({
-            status: "ok"
+            status: "success"
         })
     }
     catch (err) {
