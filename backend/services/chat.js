@@ -1,11 +1,10 @@
-export const researchAndGetAnswer = async (userQuestion, conversationId) => {
- // if a conversationId is not present setting an empty value
+import { runAgent } from "../ai/agent-service.js";
+
+export const researchAndGetAnswer = async (userQuestion, conversationId, onEvent) => {
     conversationId = conversationId || "";
 
-    try {
-
-    }
-    catch(err) {
-        
-    }
-}
+    return runAgent({
+        question: userQuestion,
+        onEvent,
+    });
+};
