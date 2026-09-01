@@ -1,7 +1,5 @@
-import { app } from "./app.js"
-import dotenv from "dotenv";
-
-dotenv.config();
+import "./load-env.js";
+import { app } from "./app.js";
 
 // PORT ON WHICH APPLICATION RUNS
 const PORT = process.env.PORT || 8000; 

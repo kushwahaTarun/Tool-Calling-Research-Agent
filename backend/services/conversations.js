@@ -21,7 +21,7 @@ export const getAllConversationFromDB = async () => {
     
     // FETCHING ALL THE CONVERSATION WITH ID AND TITLE
     const { data, error } = await supabase.from("conversations")
-    .select("id, title");
+    .select("id, title, created_at");
 
     if(error) throw error;
 
