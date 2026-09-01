@@ -9,62 +9,28 @@ import { Textarea } from "@/components/ui/textarea";
 
 export default function ChatComposer({
   autoFocus = false,
+  onSend,
+  disabled
 }: {
   autoFocus?: boolean;
+  onSend: (question: string) => void;
+  disabled: boolean;
 }) {
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+
     event.preventDefault();
-    
-    const { value } = textAreaRef?.current;
 
-    if(!value.trim().length) return;
+    const value = textAreaRef.current?.value ?? "";
 
-    try {
-      const response = await window.fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/research`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          question: value,
-          conversationId: ""
-        })
-      });
+    if (!value.trim().length) return;
 
-      if (!response.ok) {
-        console.error("error while pulling the response");
-        return;
-      }
+    onSend(value);
 
-      const reader = response.body?.getReader();
-      if (!reader) return;
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { value: chunk, done } = await reader.read();
-
-        if (done) break;
-
-        buffer += decoder.decode(chunk, { stream: true });
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
-
-        for (const part of parts) {
-          const line = part.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-
-          const event = JSON.parse(line.slice(6));
-        }
-      }
-
-    }
-    catch (err) {
-      console.error("Error generated from the file", err);
+    if (textAreaRef.current) {
+      textAreaRef.current.value = "";
     }
   }
 
@@ -126,6 +92,7 @@ export default function ChatComposer({
             <button
               type="submit"
               aria-label="Send question"
+              disabled={disabled}
               className="inline-flex size-11 items-center justify-center rounded-md bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
             >
               <ArrowUp className="size-5" aria-hidden="true" />
