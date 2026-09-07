@@ -1,45 +1,129 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { Message } from "@/interfaces/research-chat";
 import ChatComposer from "@/components/chat-composer";
 
-// INTERFACE FOR THE MESSAGE
-    interface Message {
-        role: "user" | "assistant",
-        text: string
+export default function ResearchChat() {
+
+  // STATE VARIABLE USED FOR ENABLING/DISABLING THE SEND BUTTON
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+
+  // STATE VARIABLE THAT STORES THE USER AND ASSISTANT MESSAGES 
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // STATE VARIABLE THAT SORES THE STATUS OF THE RESPONSE BASED ON THE EVENTS RECEIVED  
+  const [status, setStatus] = useState<string>("");
+
+  const transcriptRef = useRef<HTMLElement>(null);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // EXTRACTING THE CONVERSATION ID FROM THE URL PARAMS
+  let conversationId = searchParams.get("id") ?? "";
+
+  useEffect(() => {
+    // IF NO CONVERSATION ID IS PRESENT, RESET THE STATE VARIABLES
+    if (!conversationId) {
+      setMessages([]);
+      setStatus("");
+      return;
     }
 
-export default function ResearchChat() {
- 
-    // STATE VARIABLE USED FOR ENABLING/DISABLING THE SEND BUTTON
-    const [isStreaming, setIsStreaming] = useState<boolean>(false);
-    
-    // STATE VARIABLE THAT STORES THE USER AND ASSISTANT MESSAGES 
-    const [messages, setMessages] = useState<Message[]>([]);
-    
-    // STATE VARIABLE THAT SORES THE STATUS OF THE RESPONSE BASED ON THE EVENTS RECEIVED  
-    const [status, setStatus] = useState<string>("");
+    if (isStreaming) return;
 
-    const transcriptRef = useRef<HTMLElement>(null);
+    let cancelled = false;
 
-    useEffect(() => {
-      const container = transcriptRef.current;
-      if (!container) return;
-
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "smooth",
+    async function loadMessages() {
+      const response = await window.fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/messages/?conversation_id=${conversationId}`, {
+        method: "GET",
       });
-    }, [messages, status]);
 
-    async function handleSubmit(query: string) {
+      if (!response.ok) {
+        console.error("error while pulling the messages");
+        return;
+      }
+
+      const result = await response.json();
+      console.log("result", result);
+
+      const { status, data } = result;
+
+      setMessages(data);
+    }
+
+    loadMessages();
+
+    return () => {
+      cancelled = true;
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, status]);
+
+  async function handleSubmit(query: string) {
+
+    // Keep this value from before a conversation is created. The URL is updated
+    // below, but this request still needs to know whether it started a new chat.
+    const isFirstMessageInNewConversation = !conversationId;
 
     // UPDATING THE STATE TO DISABLE SEND BUTTON   
     setIsStreaming(true);
-    setMessages((prev) => [...prev, { role: "user", text: query }]);
+
+    if (!conversationId) {
+      const newConversation = await window.fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/conversations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title: query
+        })
+      });
+
+      if (!newConversation.ok) {
+        console.error("error while creating a new conversation");
+        return;
+      }
+
+      const result = await newConversation.json();
+      const data = result?.data;
+      conversationId = data?.id;
+
+      router.replace(`/?id=${conversationId}`);
+    }
+
+    const addMessage = await window.fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        role: "user",
+        message: query
+      })
+    });
+
+    if (!addMessage.ok) {
+      console.error("error while adding the user message");
+      return;
+    }
+
+    setMessages((prev) => [...prev, { role: "user", message: query }]);
     setStatus("Thinking");
 
     try {
@@ -50,7 +134,7 @@ export default function ResearchChat() {
         },
         body: JSON.stringify({
           question: query,
-          conversationId: ""
+          conversationId: conversationId
         })
       });
 
@@ -85,7 +169,7 @@ export default function ResearchChat() {
           const event = JSON.parse(line.slice(6));
 
           if (event.type === "started") {
-            setStatus("Thinking…");
+            setStatus("Thinking");
           } else if (event.type === "tool_start") {
             const label =
               event.tool === "fetch_url"
@@ -95,9 +179,35 @@ export default function ResearchChat() {
           } else if (event.type === "final_answer") {
             setMessages((prev) => [
               ...prev,
-              { role: "assistant", text: event.content ?? "" },
-            ]);
+              { role: "assistant", message: event.content ?? "" },
+            ]
+
+            );
             setStatus("");
+
+            const addMessage = await window.fetch(`${process.env.NEXT_PUBLIC_BACKEND_BASE_URL}/api/messages`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                conversation_id: conversationId,
+                role: "assistant",
+                message: event.content ?? ""
+              })
+            });
+
+            if (!addMessage.ok) {
+              console.error("error while adding the user message");
+              return;
+            }
+
+            // The sidebar is rendered on the server, so refresh it once the
+            // first conversation has a completed answer. Subsequent messages
+            // retain a conversation id and therefore do not refresh the list.
+            if (isFirstMessageInNewConversation) {
+              router.refresh();
+            }
           } else if (event.type === "error") {
             setStatus(event.message || "Research failed");
           } else if (event.type === "done") {
@@ -116,88 +226,85 @@ export default function ResearchChat() {
     }
   }
 
-    const isEmpty = messages.length === 0;
+  const isEmpty = messages.length === 0;
 
-    return (
-        <div className="flex h-full min-h-0 flex-1 flex-col">
-        <section
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <section
         ref={transcriptRef}
         aria-labelledby={isEmpty ? "empty-chat-heading" : "research-transcript"}
-        className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${
-          isEmpty ? "items-center justify-center py-10" : "items-stretch justify-start py-6"
-        }`}
-        >
+        className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 ${isEmpty ? "items-center justify-center py-10" : "items-stretch justify-start py-6"
+          }`}
+      >
         {isEmpty ? (
-        <div className="max-w-md text-center">
-          <h1
-            id="empty-chat-heading"
-            className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl"
-          >
-            What should we research?
-          </h1>
-          <p className="mt-3 text-base leading-7 text-muted-foreground">
-            Type a question below. The agent can search and call tools when it
-            needs evidence.
-          </p>
-        </div>
+          <div className="max-w-md text-center">
+            <h1
+              id="empty-chat-heading"
+              className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl"
+            >
+              What should we research?
+            </h1>
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
+              Type a question below. The agent can search and call tools when it
+              needs evidence.
+            </p>
+          </div>
         ) : (
-        <ul
-          id="research-transcript"
-          className="mx-auto flex w-full max-w-3xl flex-col gap-4"
-        >
-          {messages.map((message, index) => {
-            const isUser = message.role === "user";
+          <ul
+            id="research-transcript"
+            className="mx-auto flex w-full max-w-3xl flex-col gap-4"
+          >
+            {messages.map((message, index) => {
+              const isUser = message.role === "user";
 
-            return (
-              <li
-                key={index}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`flex min-w-0 max-w-[85%] flex-col gap-1 sm:max-w-[75%] ${
-                    isUser ? "items-end" : "items-start"
-                  }`}
+              return (
+                <li
+                  key={index}
+                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                 >
-                  <p className="text-xs text-muted-foreground">
-                    {isUser ? "You" : "Assistant"}
-                  </p>
                   <div
-                    className={`research-markdown min-w-0 wrap-anywhere rounded-md px-3 py-2 text-sm leading-6 sm:text-base ${
-                      isUser
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-border bg-card text-card-foreground"
-                    }`}
+                    className={`flex min-w-0 max-w-[85%] flex-col gap-1 sm:max-w-[75%] ${isUser ? "items-end" : "items-start"
+                      }`}
                   >
-                    <Markdown remarkPlugins={[remarkGfm]}>
-                      {message.text}
-                    </Markdown>
+                    <p className="text-xs text-muted-foreground">
+                      {isUser ? "You" : "Assistant"}
+                    </p>
+                    <div
+                      className={`research-markdown min-w-0 wrap-anywhere rounded-md px-3 py-2 text-sm leading-6 sm:text-base ${isUser
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border bg-card text-card-foreground"
+                        }`}
+                    >
+                      <Markdown remarkPlugins={[remarkGfm]}>
+                        {message.message}
+                      </Markdown>
+                    </div>
                   </div>
-                </div>
+                </li>
+              );
+            })}
+            {status ? (
+              <li key={status} className="flex justify-start">
+                <p
+                  className="research-status inline-flex max-w-[85%] items-baseline gap-1 text-sm text-muted-foreground sm:max-w-[75%]"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {status}
+                  <span className="research-status-dots" aria-hidden="true">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
+                </p>
               </li>
-            );
-          })}
-          {status ? (
-            <li key={status} className="flex justify-start">
-              <p
-                className="research-status inline-flex max-w-[85%] items-baseline gap-1 text-sm text-muted-foreground sm:max-w-[75%]"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                {status}
-                <span className="research-status-dots" aria-hidden="true">
-                  <span>.</span>
-                  <span>.</span>
-                  <span>.</span>
-                </span>
-              </p>
-            </li>
-          ) : null}
-        </ul>
+            ) : null}
+          </ul>
         )}
-        </section>
+      </section>
 
       <ChatComposer autoFocus disabled={isStreaming} onSend={handleSubmit} />
     </div>
-    )
+  )
 }

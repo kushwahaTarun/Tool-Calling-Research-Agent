@@ -31,8 +31,10 @@ export const getAllConversationFromDB = async () => {
 // FUNCTION THAT RETURNS ALL THE MESSAGES PRESENT INSIDE A CONVERSATION
 export const allConversationMessagesFromDb = async (conversation_id) => {
     const { data, error } = await supabase.from("messages")
-    .eq("conversation_id", id)
-    .select("id, messages");
+    .select("*")
+    .eq("conversation_id", conversation_id);
+
+    console.log("allConversationMessagesFromDb", data, error);
 
     if(error) throw error;
 

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { formatConversationTime } from "@/lib/time"
+import DeleteConversationBtn from "./delete-conversation-btn";
 
 export default async function ApplicationSidebar({
   children,
@@ -20,25 +21,32 @@ export default async function ApplicationSidebar({
   async function getAllConversations() {
     const baseUrl = process.env.BACKEND_BASE_URL;
 
-    if(!baseUrl) return [];
+    if (!baseUrl) return [];
 
-  try {
-    const response = await fetch(`${baseUrl}/api/conversations`,{
-      "cache": "no-store"
-  });
+    try {
+      const response = await fetch(`${baseUrl}/api/conversations`, {
+        "cache": "no-store"
+      });
 
-    if(!response.ok) {
-      console.error("Error while retrieving the conversations");
+      if (!response.ok) {
+        console.error("Error while retrieving the conversations");
+        return [];
+      }
+
+      const result = await response.json();
+      return result;
+    }
+    catch (error) {
       return [];
     }
 
-    const result = await response.json();
-    return result;
-    }
-    catch(error) {
-      return [];
-    }
+  }
 
+  async function handleSearch(formData: FormData) {
+    "use server";
+    const query = formData.get("conversationSearch") as string;
+
+    if (!query) return;
   }
 
   const conversations = await getAllConversations();
@@ -124,13 +132,15 @@ export default async function ApplicationSidebar({
                   className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
                 />
-                <input
-                  id="conversation-search"
-                  type="search"
-                  name="conversationSearch"
-                  placeholder="Find a thread"
+                <form action={handleSearch}>
+                  <input
+                    id="conversation-search"
+                    type="search"
+                    name="conversationSearch"
+                    placeholder="Find a thread"
                   className="h-11 w-full rounded-md border border-input bg-background pr-3 pl-10 text-base text-foreground placeholder:text-muted-foreground transition-colors duration-200 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none md:text-sm"
                 />
+                </form>
               </div>
             </div>
 
@@ -143,17 +153,15 @@ export default async function ApplicationSidebar({
                 Recent
               </h2>
               <ul className="flex flex-col gap-1">
-                {conversations.data.map((conversation) => (
-                  <li key={conversation.id}>
+                {conversations.data.map((conversation: any) => (
+                  <li key={conversation.id} className="group relative flex items-center">
                     <Link
-                      href="/"
-                      // aria-current={conversation.current ? "page" : undefined}
+                      href={`/?id=${conversation.id}`}
                       data-tip={conversation.title}
-                      className={`relative flex min-h-11 items-center gap-2.5 rounded-md px-3 py-2.5 text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring is-drawer-close:tooltip is-drawer-close:tooltip-right ${
-                        conversation.current
+                      className={`relative flex w-full min-h-11 items-center gap-2.5 rounded-md px-3 py-2.5 text-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring is-drawer-close:tooltip is-drawer-close:tooltip-right ${conversation.current
                           ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
                           : "text-sidebar-foreground hover:bg-sidebar-accent/70"
-                      }`}
+                        }`}
                     >
                       {conversation.current ? (
                         <span
@@ -166,17 +174,20 @@ export default async function ApplicationSidebar({
                         aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1 is-drawer-close:hidden">
-                        <span className="block truncate">
+                        <span className="block truncate pr-6">
                           {conversation.title}
                         </span>
-                        {/* <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
-                          {conversation.preview}
-                        </span> */}
                       </span>
-                      <span className="text-[11px] font-normal text-muted-foreground is-drawer-close:hidden">
+                      <span className="text-[11px] font-normal text-muted-foreground is-drawer-close:hidden group-hover:hidden">
                         {formatConversationTime(conversation.created_at)}
                       </span>
                     </Link>
+
+                    {/* Delete conversation trash button */}
+                    <DeleteConversationBtn 
+                      conversationId={conversation.id} 
+                      className="absolute right-2 hidden group-hover:flex items-center justify-center text-muted-foreground hover:text-red-500 is-drawer-close:hidden p-1 rounded-md transition-colors z-10" 
+                    />
                   </li>
                 ))}
               </ul>

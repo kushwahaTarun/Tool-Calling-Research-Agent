@@ -61,14 +61,14 @@ export const getallConversations = async (req, res) => {
 export const getConversationChats = async (req, res, next) => {
 
     const { id } = req.params;
-    const { user_id } = req.headers;
+    // const { user_id } = req.headers;
 
     try {
 
-    if(!user_id) return res.status(401).json({
-            success: false,
-            error: "Unauthorized!"
-    })
+    // if(!user_id) return res.status(401).json({
+    //         success: false,
+    //         error: "Unauthorized!"
+    // })
     
     if(!id) return res.status(400).json({
         success: false,

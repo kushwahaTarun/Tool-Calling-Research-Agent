@@ -19,6 +19,21 @@ export default function ChatComposer({
 
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      const value = textAreaRef.current?.value ?? "";
+
+      if (!value.trim().length) return;
+
+      onSend(value);
+
+      if (textAreaRef.current) {
+        textAreaRef.current.value = "";
+      }
+    }
+  }
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 
     event.preventDefault();
@@ -72,6 +87,7 @@ export default function ChatComposer({
           <Textarea
             id="research-query"
             name="question"
+            onKeyDown={handleKeyDown}
             rows={2}
             autoFocus={autoFocus}
             ref={textAreaRef}
